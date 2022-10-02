@@ -15,5 +15,5 @@ export const ContainerNotes = styled(Container)`
 
 export const ContainerFooter = styled(Card.Footer)`
   display: flex;
-  justify-content: space-between;
+  gap: 20px;
 `;

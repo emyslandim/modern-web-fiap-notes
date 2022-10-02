@@ -1,8 +1,7 @@
-import { FormEvent, useEffect, useState } from "react";
-// import Modal from "../../components/Modal";
-import { NotesService } from "../../services/notes/note-service";
+import { FormEvent, useContext, useEffect, useState } from "react";
 import { ContainerFooter, ContainerNotes } from "./styles";
 import { Note } from "../../services/notes/types";
+import Dropdown from 'react-bootstrap/Dropdown';
 
 import Modal from "react-bootstrap/Modal";
 import Button from "react-bootstrap/Button";
@@ -15,36 +14,78 @@ import { formatDate } from "../../services/utils";
 import { Placeholder } from "react-bootstrap";
 
 import Form from "react-bootstrap/Form";
+import NotesContext from "../../contexts/notes";
 
+type NotesType = {
+  id: number;
+  text: string;
+  urgent: boolean;
+  date: string;
+};
 function Home() {
-  const [notes, setNotes] = useState<Note[]>([] as Note[]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      const response = await NotesService.getNotes();
-
-      setNotes(response.data);
-      setIsLoading(false);
-    })();
-  }, []);
+  const { notes, setNotes } = useContext(NotesContext);
+  const [editInfo, setEditInfo] = useState<NotesType | null>(null);
+  const [formNoteText, setFormNoteText] = useState('');
+  const [formNoteUrgent, setFormNoteUrgent] = useState(false);
+  const [ sortBy, setSortBy ] = useState('');
 
   const [show, setShow] = useState(false);
 
-  const handleClose = () => setShow(false);
+  const handleClose = () => {
+    setFormNoteUrgent(false)
+    setFormNoteText('');
+    setEditInfo(null)
+    setShow(false)
+  };
   const handleShow = () => setShow(true);
 
-  const [validated, setValidated] = useState(false);
+  const handleRemove = (id: number) => {
+    const filteredNotes = notes.filter((notes: NotesType) => notes.id !== id)
+    setNotes(filteredNotes);
+  }
+
+  const sorBydate = () => {
+      // @ts-ignore: Unreachable code error
+    return notes.sort((a: any, b: any) => new Date(b.date) - new Date(a.date))
+  };
+
+  const sorByPriority = () => notes.sort((a, b) => (a.urgent === true ? 0 : 1) - (b.urgent === true ? 0 : 1));
+
+  const handleSort = (option: string) => {
+    switch (option) {
+      case 'priority':
+        setSortBy('priority')
+        setNotes(sorByPriority())
+        break;
+      case 'date':
+        setSortBy('date');
+        setNotes(sorBydate())
+        break;
+    }
+  }
+
+  const handleSearch = (value: string) => {
+    const newNotes = notes.filter((note) => (note.text).includes(value));
+    console.log(newNotes);
+
+    if(newNotes.length > 0) {
+      setNotes(newNotes);
+    }
+  }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    const form = event.currentTarget;
-    if (form.checkValidity() === false) {
-      event.preventDefault();
-      event.stopPropagation();
+    event.preventDefault();
+    if (editInfo !== null) {
+      const newNote = { ...editInfo, text: formNoteText, urgent: formNoteUrgent };
+      const filteredNotes = notes.filter((notes: NotesType) => notes.id !== newNote.id)
+      setNotes([newNote, ...filteredNotes]);
+    } else {
+      const newNote = { id: 13, text: formNoteText, urgent: formNoteUrgent, date: '23/12/2022' };
+      setNotes([newNote, ...notes])
     }
-
-    setValidated(true);
+    handleClose();
   };
+
 
   return (
     <>
@@ -53,13 +94,15 @@ function Home() {
           <Modal.Title>Modal heading</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form noValidate validated={validated} onSubmit={handleSubmit}>
+          <Form onSubmit={handleSubmit}>
             <Form.Group className="mb-3" controlId="text">
               <Form.Label>Nota</Form.Label>
               <Form.Control
                 required
                 type="email"
                 placeholder="Digite o texto da nota"
+                value={formNoteText || editInfo?.text}
+                onChange={(e) => setFormNoteText(e.currentTarget.value)}
               />
               <Form.Control.Feedback type="invalid">
                 Por favor informe um texto para a nota
@@ -70,7 +113,8 @@ function Home() {
               </Form.Text>
             </Form.Group>
             <Form.Group className="mb-3" controlId="formBasicCheckbox">
-              <Form.Check type="checkbox" label="Urgent" />
+              <Form.Check type="checkbox" label="Urgent" checked={formNoteUrgent || editInfo?.urgent}
+                onChange={() => setFormNoteUrgent(!formNoteUrgent)} />
             </Form.Group>
             <Button variant="primary" type="submit">
               Salvar
@@ -81,50 +125,34 @@ function Home() {
       <Navbar bg="light" expand="lg">
         <Container fluid>
           <Navbar.Brand href="#home">Fiap-Notes</Navbar.Brand>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', width: '30%' }}>
+            <Form.Control
+              placeholder="search"
+              aria-label="search"
+              aria-describedby="basic-addon1"
+              onChange={(e) => handleSearch(e.currentTarget.value)}
+            />
+            <Dropdown onSelect={(e: any) => handleSort(e)} className="d-inline mx-2">
+              <Dropdown.Toggle id="dropdown-autoclose-true">
+                { sortBy || 'sort by' }
+              </Dropdown.Toggle>
 
-          <Button onClick={() => handleShow()}>Nova Nota</Button>
+              <Dropdown.Menu>
+                <Dropdown.Item eventKey="priority">priority</Dropdown.Item>
+                <Dropdown.Item eventKey="date">date</Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown>
+            <Button style={{ width: '200px' }} onClick={() => handleShow()}>Nova Nota</Button>
+          </div>
         </Container>
       </Navbar>
       <ContainerNotes fluid>
-        {isLoading ? (
-          <>
-            <Card style={{ width: "18rem" }}>
-              <Card.Header>
-                <Placeholder as={Card.Subtitle} animation="glow">
-                  <Placeholder xs={6} />
-                </Placeholder>
-              </Card.Header>
-              <Card.Body>
-                <Placeholder as={Card.Text} animation="glow">
-                  <Placeholder xs={7} /> <Placeholder xs={4} />{" "}
-                </Placeholder>
-              </Card.Body>
-              <ContainerFooter>
-                <Placeholder xs={7} /> <Placeholder xs={4} />{" "}
-              </ContainerFooter>
-            </Card>
-            <Card style={{ width: "18rem" }}>
-              <Card.Header>
-                <Placeholder as={Card.Subtitle} animation="glow">
-                  <Placeholder xs={6} />
-                </Placeholder>
-              </Card.Header>
-              <Card.Body>
-                <Placeholder as={Card.Text} animation="glow">
-                  <Placeholder xs={7} /> <Placeholder xs={4} />{" "}
-                </Placeholder>
-              </Card.Body>
-              <ContainerFooter>
-                <Placeholder xs={7} /> <Placeholder xs={4} />{" "}
-              </ContainerFooter>
-            </Card>
-          </>
-        ) : (
+        {
           notes.map((note) => (
             <Card style={{ width: "18rem" }}>
               <Card.Header>
                 <Card.Subtitle>
-                  {formatDate(new Date(note?.date))}
+                  {note?.date}
                 </Card.Subtitle>
               </Card.Header>
               <Card.Body>
@@ -136,11 +164,14 @@ function Home() {
                     priority_high
                   </span>
                 )}
-                <span className="material-icons"> delete_forever </span>
+                <span className="material-icons" onClick={() => handleRemove(note.id)}> delete_forever </span>
+                <span className="material-icons" onClick={() => {
+                  setEditInfo(note);
+                  setShow(true);
+                }}> edit </span>
               </ContainerFooter>
             </Card>
-          ))
-        )}
+          ))}
       </ContainerNotes>
     </>
   );
